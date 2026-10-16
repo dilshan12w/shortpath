@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dijkstra vs A* — Algorithm Visualizer</title>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0b0e;--card:#0f1117;--border:#1f2430;
+  --amber:#f59e0b;--cyan:#38bdf8;--red:#ef4444;--green:#10b981;
+  --text:#e2e8f0;--dim:#64748b;--code-bg:#0d1117;
+}
+@font-face{font-family:'Jet';src:local('JetBrains Mono'),local('Fira Code'),local('Consolas')}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:'JetBrains Mono','Fira Code','Cascadia Code',Consolas,monospace;
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:20px;padding:16px;
+  -webkit-font-smoothing:antialiased;
+}
+/* ─── 9:16 Card ─── */
+.card{
+  width:min(400px,92vw,calc((100svh - 150px)*.5625));aspect-ratio:9/16;
+  background:var(--card);border:1px solid var(--border);
+  border-radius:16px;overflow:hidden;display:flex;flex-direction:column;
+  box-shadow:0 0 60px rgba(0,0,0,.6),0 0 1px rgba(255,255,255,.05);
+  position:relative;
+}
+/* ─── Header ─── */
+.hdr{
+  padding:20px 20px 14px;text-align:center;flex-shrink:0;
+}
+.title{font-size:28px;font-weight:800;letter-spacing:-1px;line-height:1.1}
+.title .amber{color:var(--amber);text-shadow:0 0 20px rgba(245,158,11,.3)}
+.title .vs{color:var(--dim);font-size:18px;font-weight:400;margin:0 6px}
+.title .cy{color:var(--cyan);text-shadow:0 0 20px rgba(56,189,248,.3)}
+.badges{display:flex;justify-content:center;gap:8px;margin-top:10px}
+.badge{
+  font-size:9px;letter-spacing:1.2px;font-weight:600;
+  padding:4px 10px;border-radius:99px;
+  border:1px solid var(--border);color:var(--dim);
+  background:rgba(255,255,255,.02);
+}
+.phase-tag{
+  position:absolute;top:12px;right:16px;font-size:9px;letter-spacing:1px;
+  padding:3px 8px;border-radius:6px;font-weight:700;
+  background:rgba(255,255,255,.04);border:1px solid var(--border);
+  color:var(--dim);transition:all .4s;
+}
+.phase-tag.amber{color:var(--amber);border-color:rgba(245,158,11,.25)}
+.phase-tag.cyan{color:var(--cyan);border-color:rgba(56,189,248,.25)}
+.phase-tag.both{color:#a78bfa;border-color:rgba(167,139,250,.25)}
+/* ─── Canvas ─── */
+.canvas-wrap{
+  flex:1;min-height:0;padding:0 14px;position:relative;
+}
+.canvas-wrap canvas{
+  width:100%;height:100%;border-radius:10px;display:block;
+  border:1px solid var(--border);background:#080a0e;
+}
+/* ─── Code Window ─── */
+.code-win{
+  margin:10px 14px 14px;border-radius:10px;overflow:hidden;flex-shrink:0;
+  border:1px solid var(--border);background:var(--code-bg);
+}
+.code-bar{
+  display:flex;align-items:center;padding:8px 12px;gap:6px;
+  background:rgba(255,255,255,.02);border-bottom:1px solid var(--border);
+}
+.dot{width:10px;height:10px;border-radius:50%}
+.dot.r{background:#ff5f57}.dot.y{background:#febc2e}.dot.g{background:#28c840}
+.file-tab{
+  font-size:10px;color:var(--dim);margin-left:8px;
+  padding:2px 8px;border-radius:4px;background:rgba(255,255,255,.04);
+}
+.algo-badge{
+  margin-left:auto;font-size:8px;font-weight:700;letter-spacing:1.5px;
+  padding:2px 8px;border-radius:4px;
+}
+.algo-badge.amber{color:var(--amber);background:rgba(245,158,11,.1)}
+.algo-badge.cyan{color:var(--cyan);background:rgba(56,189,248,.1)}
+.code-body{
+  padding:8px 0;font-size:11px;line-height:1.65;overflow:hidden;
+  max-height:220px;
+}
+.cl{
+  display:flex;padding:0 12px;transition:background .15s;
+  border-left:2px solid transparent;
+}
+.cl.active-amber{
+  background:rgba(245,158,11,.08);border-left-color:var(--amber);
+}
+.cl.active-cyan{
+  background:rgba(56,189,248,.08);border-left-color:var(--cyan);
+}
+.ln{
+  color:#3b4252;min-width:28px;text-align:right;margin-right:12px;
+  user-select:none;font-size:10px;
+}
+.cl.active-amber .ln,.cl.active-cyan .ln{color:var(--dim)}
+.indicator{width:10px;color:var(--amber);font-weight:700}
+.cl.active-cyan .indicator{color:var(--cyan)}
+/* syntax */
+.kw{color:#c792ea}.fn{color:#82aaff}.num{color:#f78c6c}
+.str{color:#c3e88d}.op{color:#89ddff}.cmt{color:#546e7a;font-style:italic}
+.blt{color:#ffcb6b}
+/* ─── Controls ─── */
+.ctrls{
+  display:flex;flex-wrap:wrap;align-items:center;justify-content:center;
+  gap:8px;max-width:min(420px,94vw);
+}
+.ctrls button{
+  font-family:inherit;font-size:11px;font-weight:600;
+  padding:8px 14px;border-radius:8px;border:1px solid var(--border);
+  background:rgba(255,255,255,.04);color:var(--text);cursor:pointer;
+  transition:all .2s;letter-spacing:.3px;
+}
+.ctrls button:hover{background:rgba(255,255,255,.08);border-color:#334155}
+.ctrls button:active{transform:scale(.97)}
+.ctrls button.primary{
+  background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.3);
+  color:var(--amber);
+}
+.ctrls button.primary:hover{background:rgba(245,158,11,.2)}
+.speed-wrap{
+  display:flex;align-items:center;gap:6px;font-size:10px;color:var(--dim);
+}
+.speed-wrap input[type=range]{
+  width:80px;accent-color:var(--amber);cursor:pointer;
+}
+.ctrls .mute-btn{font-size:14px;padding:8px 10px}
+/* ─── Stats Overlay ─── */
+.stats-bar{
+  position:absolute;bottom:20px;left:50%;transform:translateX(-50%);
+  display:flex;gap:12px;font-size:9px;font-weight:600;letter-spacing:.5px;
+  opacity:0;transition:opacity .5s;pointer-events:none;
+}
+.stats-bar.show{opacity:1}
+.stat{
+  padding:4px 10px;border-radius:6px;
+  background:rgba(0,0,0,.7);border:1px solid var(--border);
+}
+.stat.amber{color:var(--amber)}.stat.cyan{color:var(--cyan)}
+</style>
+</head>
+<body>
+
+<div class="card" id="card">
+  <div class="phase-tag" id="phaseTag">READY</div>
+  <div class="hdr">
+    <div class="title">
+      <span class="amber">Dijkstra</span><span class="vs">vs</span><span class="cy">A*</span>
+    </div>
+    <div class="badges">
+      <span class="badge">TIME O(E log V)</span>
+      <span class="badge">SPACE O(V)</span>
+    </div>
+  </div>
+  <div class="canvas-wrap">
+    <canvas id="map"></canvas>
+    <div class="stats-bar" id="statsBar">
+      <span class="stat amber" id="statD"></span>
+      <span class="stat cyan" id="statA"></span>
+    </div>
+  </div>
+  <div class="code-win">
+    <div class="code-bar">
+      <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+      <span class="file-tab" id="fileTab">dijkstra.py</span>
+      <span class="algo-badge amber" id="algoBadge">DIJKSTRA</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+
+<div class="ctrls">
+<button class="primary" id="btnFull">▶ Start Visualization</button>
+  <button id="btnDijk">Dijkstra</button>
+  <button id="btnAstar">A*</button>
+  <div class="speed-wrap">
+    <span>Speed</span>
+    <input type="range" id="speed" min="1" max="20" value="10">
+  </div>
+  <button class="mute-btn" id="btnMute" title="Toggle Audio">🔊</button>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// MinHeap
+// ═══════════════════════════════════════════════
+class MinHeap {
+  constructor(){this.d=[]}
+  get size(){return this.d.length}
+  push(p,v){this.d.push({p,v});this._up(this.d.length-1)}
+  pop(){
+    const t=this.d[0],l=this.d.pop();
+    if(this.d.length>0){this.d[0]=l;this._dn(0)}
+    return t;
+  }
+  _up(i){
+    while(i>0){
+      const pi=(i-1)>>1;
+      if(this.d[i].p>=this.d[pi].p)break;
+      [this.d[i],this.d[pi]]=[this.d[pi],this.d[i]];i=pi;
+    }
+  }
+  _dn(i){
+    const n=this.d.length;
+    while(true){
+      let s=i,l=2*i+1,r=2*i+2;
+      if(l<n&&this.d[l].p<this.d[s].p)s=l;
+      if(r<n&&this.d[r].p<this.d[s].p)s=r;
+      if(s===i)break;
+      [this.d[i],this.d[s]]=[this.d[s],this.d[i]];i=s;
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════
+// Seeded PRNG (for reproducible city layout)
+// ═══════════════════════════════════════════════
+let _seed = 42;
+function seedRandom(s){_seed=s}
+function srand(){_seed=((_seed*1103515245+12345)&0x7fffffff);return _seed/0x7fffffff}
+
+// ═══════════════════════════════════════════════
+// City Generation
+// ═══════════════════════════════════════════════
+function generateCity(W, H) {
+  const COLS=15, ROWS=11, margin=18;
+  const cw=(W-2*margin)/(COLS-1), ch=(H-2*margin)/(ROWS-1);
+  const mainC=new Set([0,4,7,11,COLS-1]);
+  const mainR=new Set([0,3,6,ROWS-1]);
+  const nodes=[];
+
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      const isMain=mainC.has(c)||mainR.has(r);
+      const j=isMain?0.18:0.38;
+      nodes.push({
+        x: margin+c*cw+(srand()-0.5)*cw*j,
+        y: margin+r*ch+(srand()-0.5)*ch*j
+      });
+    }
+  }
+
+  const edges=[];
+  const idx=(r,c)=>r*COLS+c;
+
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      if(c<COLS-1 && (mainR.has(r)||srand()>0.12))
+        edges.push([idx(r,c),idx(r,c+1)]);
+      if(r<ROWS-1 && (mainC.has(c)||srand()>0.12))
+        edges.push([idx(r,c),idx(r+1,c)]);
+      if(c<COLS-1&&r<ROWS-1&&srand()>0.82)
+        edges.push([idx(r,c),idx(r+1,c+1)]);
+      if(c>0&&r<ROWS-1&&srand()>0.88)
+        edges.push([idx(r,c),idx(r+1,c-1)]);
+    }
+  }
+
+  // Start bottom-left, goal top-right
+  const startId=idx(ROWS-2,1);
+  const goalId=idx(1,COLS-2);
+
+  return {nodes, edges, startId, goalId, COLS, ROWS};
+}
+
+// Verify connectivity via BFS
+function isConnected(nodes, edges, s, g){
+  const adj=new Map();
+  nodes.forEach((_,i)=>adj.set(i,[]));
+  for(const[a,b]of edges){adj.get(a).push(b);adj.get(b).push(a)}
+  const vis=new Set([s]),q=[s];
+  while(q.length){
+    const u=q.shift();
+    if(u===g)return true;
+    for(const v of adj.get(u))if(!vis.has(v)){vis.add(v);q.push(v)}
+  }
+  return false;
+}
+
+// Build adjacency list with weights = Euclidean distance
+function buildAdj(nodes, edges){
+  const adj=new Map();
+  nodes.forEach((_,i)=>adj.set(i,[]));
+  for(const[a,b]of edges){
+    const w=Math.hypot(nodes[a].x-nodes[b].x, nodes[a].y-nodes[b].y);
+    adj.get(a).push({to:b,w});
+    adj.get(b).push({to:a,w});
+  }
+  return adj;
+}
+
+function reconstructPath(prev, start, goal){
+  const p=[];let c=goal;
+  while(c!==undefined){p.unshift(c);if(c===start)break;c=prev.get(c)}
+  return p;
+}
+
+// ═══════════════════════════════════════════════
+// Algorithm Generators
+// ═══════════════════════════════════════════════
+function* dijkstraGen(adj, startId, goalId, nodes){
+  const dist=new Map([[startId,0]]);
+  const prev=new Map();
+  const visited=new Set();
+  const explored=[];  // [fromId, toId]
+  const heap=new MinHeap();
+  heap.push(0, startId);
+
+  const sx=nodes[startId].x, sy=nodes[startId].y;
+  const gx=nodes[goalId].x, gy=nodes[goalId].y;
+  const maxD=Math.hypot(gx-sx,gy-sy);
+
+  while(heap.size>0){
+    const{p:d,v:u}=heap.pop();
+    if(visited.has(u)) continue;
+    visited.add(u);
+
+    const nEdges=[];
+    for(const{to:v,w}of adj.get(u)||[]){
+      const nd=d+w;
+      if(nd<(dist.get(v)??1e18)){
+        dist.set(v,nd);prev.set(v,u);
+        heap.push(nd,v);
+        explored.push([u,v]);nEdges.push([u,v]);
+      }
+    }
+
+    const cur=nodes[u];
+    const prog=Math.min(.97, Math.hypot(cur.x-sx,cur.y-sy)/maxD);
+
+    if(u===goalId){
+      yield{line:7,activeLine:7,explored:[...explored],visitedEdges:[...explored],nEdges,cur:u,currentNode:u,
+        frontierNodes:heap.d.map(item=>item.v),path:reconstructPath(prev,startId,goalId),finalPath:reconstructPath(prev,startId,goalId),prog:1,vc:visited.size};
+      return;
+    }
+    yield{line:5,activeLine:5,explored:[...explored],visitedEdges:[...explored],nEdges,cur:u,currentNode:u,
+      frontierNodes:heap.d.map(item=>item.v),path:null,finalPath:null,prog,vc:visited.size};
+  }
+}
+
+function* astarGen(adj, startId, goalId, nodes){
+  const g=new Map([[startId,0]]);
+  const prev=new Map();
+  const visited=new Set();
+  const explored=[];
+  const heap=new MinHeap();
+
+  const gx=nodes[goalId].x, gy=nodes[goalId].y;
+  const sx=nodes[startId].x, sy=nodes[startId].y;
+  const maxD=Math.hypot(gx-sx,gy-sy);
+  const h=id=>Math.hypot(nodes[id].x-gx, nodes[id].y-gy);
+
+  heap.push(h(startId), startId);
+
+  while(heap.size>0){
+    const{v:u}=heap.pop();
+    if(visited.has(u)) continue;
+    visited.add(u);
+
+    const gu=g.get(u);
+    const nEdges=[];
+    for(const{to:v,w}of adj.get(u)||[]){
+      const ng=gu+w;
+      if(ng<(g.get(v)??1e18)){
+        g.set(v,ng);prev.set(v,u);
+        heap.push(ng+h(v),v);
+        explored.push([u,v]);nEdges.push([u,v]);
+      }
+    }
+
+    const cur=nodes[u];
+    const prog=Math.min(.97, Math.hypot(cur.x-sx,cur.y-sy)/maxD);
+
+    if(u===goalId){
+      yield{line:7,activeLine:7,explored:[...explored],visitedEdges:[...explored],nEdges,cur:u,currentNode:u,
+        frontierNodes:heap.d.map(item=>item.v),path:reconstructPath(prev,startId,goalId),finalPath:reconstructPath(prev,startId,goalId),prog:1,vc:visited.size};
+      return;
+    }
+    yield{line:5,activeLine:5,explored:[...explored],visitedEdges:[...explored],nEdges,cur:u,currentNode:u,
+      frontierNodes:heap.d.map(item=>item.v),path:null,finalPath:null,prog,vc:visited.size};
+  }
+}
+
+// ═══════════════════════════════════════════════
+// Python Code Snippets + Syntax Highlighting
+// ═══════════════════════════════════════════════
+const DIJKSTRA_CODE = [
+  'import heapq',
+  'def dijkstra(graph, start, goal):',
+  '    dist, prev = {start: 0}, {}; pq = [(0, start)]',
+  '    while pq:',
+  '        d, u = heapq.heappop(pq)',
+  '        if d != dist[u]: continue',
+  '        if u == goal: break',
+  '        for v, w in graph[u]:',
+  '            if d+w < dist.get(v, 1e9): dist[v], prev[v] = d+w, u; heapq.heappush(pq,(d+w,v))',
+  '    return dist, prev',
+];
+
+const ASTAR_CODE = [
+  'import heapq',
+  'def astar(graph, start, goal, h):',
+  '    g, prev = {start: 0}, {}; pq = [(h(start), start, 0)]',
+  '    while pq:',
+  '        _, u, gu = heapq.heappop(pq)',
+  '        if gu != g[u]: continue',
+  '        if u == goal: return g, prev',
+  '        for v, w in graph[u]:',
+  '            if (ng := gu+w) < g.get(v,1e9): g[v], prev[v] = ng,u; heapq.heappush(pq,(ng+h(v),v,ng))',
+  '    return g, prev',
+];
+
+function syntaxHL(s){
+  s=s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  // strings
+  s=s.replace(/('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")/g,'<span class="str">$1</span>');
+  // numbers
+  s=s.replace(/\b(\d+(?:\.\d+)?(?:e\d+)?)\b/g,'<span class="num">$1</span>');
+  // keywords
+  s=s.replace(/\b(def|for|if|while|return|break|continue|in|not|and|or|import|from|as)\b/g,'<span class="kw">$1</span>');
+  // builtins
+  s=s.replace(/\b(set|dict|list|float|True|False|None)\b/g,'<span class="blt">$1</span>');
+  // functions
+  s=s.replace(/\b(heapq|heappop|heappush|get|add|len|print)\b/g,'<span class="fn">$1</span>');
+  // comments
+  s=s.replace(/(#.*)$/,'<span class="cmt">$1</span>');
+  return s;
+}
+
+function renderCode(lines, activeLine, colorCls){
+  const body=document.getElementById('codeBody');
+  body.innerHTML=lines.map((l,i)=>{
+    const ln=i+1;
+    const active=ln===activeLine;
+    const cls='cl'+(active?(' active-'+colorCls):'');
+    const ind=active?'>':' ';
+    return `<div class="${cls}"><span class="ln">${String(ln).padStart(2)}</span><span class="indicator">${ind}</span><span>${syntaxHL(l)}</span></div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════
+// Canvas Renderer
+// ═══════════════════════════════════════════════
+const canvas=document.getElementById('map');
+const ctx=canvas.getContext('2d');
+let CW, CH, DPR;
+
+function sizeCanvas(){
+  const wrap=canvas.parentElement;
+  const rect=wrap.getBoundingClientRect();
+  DPR=window.devicePixelRatio||1;
+  CW=rect.width; CH=rect.height;
+  canvas.width=CW*DPR; canvas.height=CH*DPR;
+  canvas.style.width=CW+'px'; canvas.style.height=CH+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+
+function drawScene(city, adj, state, color, algo, showHeuristic){
+  const{nodes,edges,startId,goalId}=city;
+  ctx.clearRect(0,0,CW,CH);
+
+  // Dark edges (all streets)
+  ctx.strokeStyle='#1e293b';ctx.lineWidth=1.2;
+  ctx.beginPath();
+  for(const[a,b]of edges){
+    ctx.moveTo(nodes[a].x, nodes[a].y);
+    ctx.lineTo(nodes[b].x, nodes[b].y);
+  }
+  ctx.stroke();
+
+  if(state){
+    // Explored edges
+    const eColor=color==='amber'?'rgba(245,158,11,':'rgba(56,189,248,';
+    ctx.strokeStyle=eColor+'0.55)';ctx.lineWidth=1.8;
+    ctx.shadowColor=eColor+'0.4)';ctx.shadowBlur=6;
+    ctx.beginPath();
+    for(const[a,b]of state.explored){
+      ctx.moveTo(nodes[a].x,nodes[a].y);
+      ctx.lineTo(nodes[b].x,nodes[b].y);
+    }
+    ctx.stroke();
+    ctx.shadowBlur=0;
+
+    // New edges (brighter pulse)
+    if(state.nEdges&&state.nEdges.length){
+      ctx.strokeStyle=eColor+'0.9)';ctx.lineWidth=2.2;
+      ctx.shadowColor=eColor+'0.7)';ctx.shadowBlur=10;
+      ctx.beginPath();
+      for(const[a,b]of state.nEdges){
+        ctx.moveTo(nodes[a].x,nodes[a].y);
+        ctx.lineTo(nodes[b].x,nodes[b].y);
+      }
+      ctx.stroke();
+      ctx.shadowBlur=0;
+    }
+
+    // Heuristic dashed line (A* only)
+    if(showHeuristic&&state.cur!=null&&!state.path){
+      ctx.save();
+      ctx.setLineDash([3,4]);
+      ctx.strokeStyle='rgba(56,189,248,0.2)';ctx.lineWidth=1;
+      ctx.beginPath();
+      ctx.moveTo(nodes[state.cur].x,nodes[state.cur].y);
+      ctx.lineTo(nodes[goalId].x,nodes[goalId].y);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Path
+    if(state.path&&state.path.length>1){
+      const pColor=color==='amber'?'#fbbf24':'#67e8f9';
+      ctx.strokeStyle=pColor;ctx.lineWidth=3;
+      ctx.shadowColor=pColor;ctx.shadowBlur=12;
+      ctx.beginPath();
+      ctx.moveTo(nodes[state.path[0]].x,nodes[state.path[0]].y);
+      for(let i=1;i<state.path.length;i++)
+        ctx.lineTo(nodes[state.path[i]].x,nodes[state.path[i]].y);
+      ctx.stroke();
+      ctx.shadowBlur=0;
+    }
+
+    // Current node
+    if(state.cur!=null&&!state.path){
+      const n=nodes[state.cur];
+      const cc=color==='amber'?'#f59e0b':'#38bdf8';
+      ctx.fillStyle=cc;ctx.shadowColor=cc;ctx.shadowBlur=12;
+      ctx.beginPath();ctx.arc(n.x,n.y,3.5,0,Math.PI*2);ctx.fill();
+      ctx.shadowBlur=0;
+    }
+  }
+
+  // Start pin
+  drawPin(nodes[startId],'#ef4444',8);
+  // Goal pin
+  drawPin(nodes[goalId],'#10b981',8);
+
+  // NODE label
+  if(state&&state.cur!=null){
+    const n=nodes[state.cur];
+    const nid=((state.cur*7919+1234567)>>>0).toString(16).toUpperCase().padStart(8,'0');
+    ctx.font='7.5px monospace';ctx.fillStyle='rgba(148,163,184,0.55)';
+    ctx.fillText('NODE = 0x'+nid, Math.min(n.x+6, CW-80), Math.max(n.y-6, 12));
+  }
+
+  // BERLIN badge
+  ctx.font='bold 8px monospace';
+  ctx.fillStyle='rgba(100,116,139,0.35)';
+  ctx.fillText('BERLIN',CW-50,CH-8);
+
+  // Visited counter
+  if(state){
+    ctx.font='8px monospace';
+    const vc=state.vc||0;
+    const tc=color==='amber'?'rgba(245,158,11,0.6)':'rgba(56,189,248,0.6)';
+    ctx.fillStyle=tc;
+    ctx.fillText('visited: '+vc,8,CH-8);
+  }
+}
+
+function drawPin(n, color, r){
+  ctx.save();
+  // Glow
+  ctx.shadowColor=color;ctx.shadowBlur=14;
+  ctx.fillStyle=color;
+  ctx.beginPath();ctx.arc(n.x,n.y,4,0,Math.PI*2);ctx.fill();
+  // Ring
+  ctx.shadowBlur=0;
+  ctx.strokeStyle=color;ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.arc(n.x,n.y,r,0,Math.PI*2);ctx.stroke();
+  ctx.restore();
+}
+
+// Comparison overlay
+function drawComparison(city, dEdges, aEdges, dPath, aPath){
+  const{nodes,edges,startId,goalId}=city;
+  ctx.clearRect(0,0,CW,CH);
+
+  // Base streets
+  ctx.strokeStyle='#111827';ctx.lineWidth=1;
+  ctx.beginPath();
+  for(const[a,b]of edges){
+    ctx.moveTo(nodes[a].x,nodes[a].y);ctx.lineTo(nodes[b].x,nodes[b].y);
+  }
+  ctx.stroke();
+
+  // Dijkstra explored (amber)
+  ctx.strokeStyle='rgba(245,158,11,0.3)';ctx.lineWidth=1.6;
+  ctx.shadowColor='rgba(245,158,11,0.2)';ctx.shadowBlur=4;
+  ctx.beginPath();
+  for(const[a,b]of dEdges){
+    ctx.moveTo(nodes[a].x,nodes[a].y);ctx.lineTo(nodes[b].x,nodes[b].y);
+  }
+  ctx.stroke();ctx.shadowBlur=0;
+
+  // A* explored (cyan)
+  ctx.strokeStyle='rgba(56,189,248,0.35)';ctx.lineWidth=1.6;
+  ctx.shadowColor='rgba(56,189,248,0.2)';ctx.shadowBlur=4;
+  ctx.beginPath();
+  for(const[a,b]of aEdges){
+    ctx.moveTo(nodes[a].x,nodes[a].y);ctx.lineTo(nodes[b].x,nodes[b].y);
+  }
+  ctx.stroke();ctx.shadowBlur=0;
+
+  // Dijkstra path
+  if(dPath&&dPath.length>1){
+    ctx.strokeStyle='#fbbf24';ctx.lineWidth=2.5;
+    ctx.shadowColor='#fbbf24';ctx.shadowBlur=8;
+    ctx.beginPath();ctx.moveTo(nodes[dPath[0]].x,nodes[dPath[0]].y);
+    for(let i=1;i<dPath.length;i++)ctx.lineTo(nodes[dPath[i]].x,nodes[dPath[i]].y);
+    ctx.stroke();ctx.shadowBlur=0;
+  }
+
+  // A* path (offset slightly so both are visible)
+  if(aPath&&aPath.length>1){
+    ctx.strokeStyle='#67e8f9';ctx.lineWidth=2.5;
+    ctx.shadowColor='#67e8f9';ctx.shadowBlur=8;
+    ctx.beginPath();ctx.moveTo(nodes[aPath[0]].x+1,nodes[aPath[0]].y+1);
+    for(let i=1;i<aPath.length;i++)ctx.lineTo(nodes[aPath[i]].x+1,nodes[aPath[i]].y+1);
+    ctx.stroke();ctx.shadowBlur=0;
+  }
+
+  // Pins
+  drawPin(nodes[startId],'#ef4444',8);
+  drawPin(nodes[goalId],'#10b981',8);
+
+  // Labels
+  ctx.font='bold 8px monospace';
+  ctx.fillStyle='rgba(100,116,139,0.35)';
+  ctx.fillText('BERLIN',CW-50,CH-8);
+
+  // Legend
+  ctx.font='bold 9px monospace';
+  ctx.fillStyle='#f59e0b';ctx.fillText('■ DIJKSTRA',8,14);
+  ctx.fillStyle='#38bdf8';ctx.fillText('■ A*',8,26);
+}
+
+// ═══════════════════════════════════════════════
+// Audio Engine
+// ═══════════════════════════════════════════════
+class AudioEngine {
+  constructor(){this.ctx=null;this.muted=false;this.last=0}
+  init(){
+    if(this.ctx)return;
+    this.ctx=new(window.AudioContext||window.webkitAudioContext)();
+  }
+  playStep(progress){
+    if(this.muted||!this.ctx)return;
+    const now=performance.now();
+    if(now-this.last<40)return; // throttle
+    this.last=now;
+    const t=this.ctx.currentTime;
+    const freq=180+1220*progress;
+    const osc=this.ctx.createOscillator();
+    const gain=this.ctx.createGain();
+    osc.type='sine';
+    osc.frequency.setValueAtTime(freq,t);
+    gain.gain.setValueAtTime(0.06,t);
+    gain.gain.exponentialRampToValueAtTime(0.001,t+0.08);
+    osc.connect(gain);gain.connect(this.ctx.destination);
+    osc.start(t);osc.stop(t+0.08);
+  }
+  playChord(){
+    if(this.muted||!this.ctx)return;
+    const t=this.ctx.currentTime;
+    for(const f of [523.25,659.25,783.99,1046.5]){
+      const osc=this.ctx.createOscillator();
+      const gain=this.ctx.createGain();
+      osc.type='triangle';
+      osc.frequency.setValueAtTime(f,t);
+      gain.gain.setValueAtTime(0.05,t);
+      gain.gain.exponentialRampToValueAtTime(0.001,t+0.7);
+      osc.connect(gain);gain.connect(this.ctx.destination);
+      osc.start(t);osc.stop(t+0.7);
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════
+// Main Application
+// ═══════════════════════════════════════════════
+const audio=new AudioEngine();
+let city, adj;
+let running=false, timer=null, runId=0, cancelRun=null, sequenceId=0;
+let dijkstraResult=null, astarResult=null;
+
+// UI elements
+const phaseTag=document.getElementById('phaseTag');
+const fileTab=document.getElementById('fileTab');
+const algoBadge=document.getElementById('algoBadge');
+const statsBar=document.getElementById('statsBar');
+const statD=document.getElementById('statD');
+const statA=document.getElementById('statA');
+const speedSlider=document.getElementById('speed');
+
+function init(){
+  sizeCanvas();
+  let tries=0;
+  do{
+    seedRandom(42+tries);
+    city=generateCity(CW, CH);
+    tries++;
+  } while(!isConnected(city.nodes, city.edges, city.startId, city.goalId)&&tries<50);
+  adj=buildAdj(city.nodes, city.edges);
+  drawScene(city, adj, null, 'amber', 'dijkstra', false);
+  renderCode(DIJKSTRA_CODE, -1, 'amber');
+  phaseTag.textContent='READY';
+  phaseTag.className='phase-tag';
+  statsBar.classList.remove('show');
+}
+init();
+window.addEventListener('resize',()=>{
+  stop();sequenceId++;
+  dijkstraResult=null;astarResult=null;
+  sizeCanvas();
+  // Regenerate city for new dimensions
+  let tries=0;
+  do{
+    seedRandom(42+tries);
+    city=generateCity(CW, CH);
+    tries++;
+  } while(!isConnected(city.nodes, city.edges, city.startId, city.goalId)&&tries<50);
+  adj=buildAdj(city.nodes, city.edges);
+  drawScene(city, adj, null, 'amber', 'dijkstra', false);
+});
+
+function getDelay(){
+  const s=parseInt(speedSlider.value);
+  return Math.round(200*Math.pow(0.85,s));
+}
+
+function stop(){
+  running=false;runId++;
+  if(timer){clearTimeout(timer);timer=null}
+  if(cancelRun){const cancel=cancelRun;cancelRun=null;cancel()}
+}
+
+function setPhase(text, cls){
+  phaseTag.textContent=text;
+  phaseTag.className='phase-tag'+(cls?' '+cls:'');
+}
+
+function setCodeWindow(algo){
+  if(algo==='dijkstra'){
+    fileTab.textContent='dijkstra.py';
+    algoBadge.textContent='DIJKSTRA';
+    algoBadge.className='algo-badge amber';
+  } else {
+    fileTab.textContent='astar.py';
+    algoBadge.textContent='A*';
+    algoBadge.className='algo-badge cyan';
+  }
+}
+
+function runAlgorithm(genFn, code, color, algo, showH){
+  return new Promise(resolve=>{
+    stop();
+    running=true;
+    const myId=runId;
+    const cancel=()=>resolve(null);
+    cancelRun=cancel;
+    const gen=genFn(adj, city.startId, city.goalId, city.nodes);
+    setCodeWindow(algo);
+    setPhase(algo==='dijkstra'?'DIJKSTRA':'A*', color);
+    statsBar.classList.remove('show');
+
+    let lastState=null;
+
+    function step(){
+      if(!running||runId!==myId)return resolve(null);
+      const r=gen.next();
+      if(r.done){
+        running=false;
+        if(cancelRun===cancel)cancelRun=null;
+        resolve(lastState);
+        return;
+      }
+      lastState=r.value;
+      drawScene(city, adj, lastState, color, algo, showH);
+      renderCode(code, lastState.line, color);
+      audio.playStep(lastState.prog);
+
+      if(lastState.path){
+        // Found goal – play chord, pause, then resolve
+        audio.playChord();
+        running=false;
+        if(cancelRun===cancel)cancelRun=null;
+        resolve(lastState);
+        return;
+      }
+      timer=setTimeout(step, getDelay());
+    }
+    step();
+  });
+}
+
+async function playFull(){
+  const sequence=++sequenceId;
+  stop();
+  audio.init();
+  dijkstraResult=null;astarResult=null;
+  statsBar.classList.remove('show');
+
+  // Phase 1: Dijkstra
+  dijkstraResult=await runAlgorithm(dijkstraGen, DIJKSTRA_CODE, 'amber', 'dijkstra', false);
+  if(!dijkstraResult||sequence!==sequenceId)return;
+  await wait(1800);
+  if(sequence!==sequenceId)return;
+
+  // Phase 2: A*
+  astarResult=await runAlgorithm(astarGen, ASTAR_CODE, 'cyan', 'astar', true);
+  if(!astarResult||sequence!==sequenceId)return;
+  await wait(1800);
+  if(sequence!==sequenceId)return;
+
+  // Phase 3: Comparison
+  showComparison();
+}
+
+function showComparison(){
+  if(!dijkstraResult||!astarResult)return;
+  setPhase('COMPARISON','both');
+  drawComparison(city, dijkstraResult.explored, astarResult.explored,
+    dijkstraResult.path, astarResult.path);
+
+  const dLen=dijkstraResult.explored.length;
+  const aLen=astarResult.explored.length;
+  statD.textContent=`DIJKSTRA: ${dLen} edges`;
+  statA.textContent=`A*: ${aLen} edges (${Math.round((1-aLen/dLen)*100)}% fewer)`;
+  statsBar.classList.add('show');
+
+  renderCode(ASTAR_CODE, -1, 'cyan');
+}
+
+function wait(ms){return new Promise(r=>setTimeout(r,ms))}
+
+// ─── Button Handlers ───
+document.getElementById('btnFull').onclick=()=>playFull();
+
+document.getElementById('btnDijk').onclick=async()=>{
+  sequenceId++;
+  stop();audio.init();
+  dijkstraResult=await runAlgorithm(dijkstraGen, DIJKSTRA_CODE, 'amber', 'dijkstra', false);
+};
+
+document.getElementById('btnAstar').onclick=async()=>{
+  sequenceId++;
+  stop();audio.init();
+  astarResult=await runAlgorithm(astarGen, ASTAR_CODE, 'cyan', 'astar', true);
+};
+
+document.getElementById('btnMute').onclick=function(){
+  audio.init();
+  audio.muted=!audio.muted;
+  this.textContent=audio.muted?'🔇':'🔊';
+};
+</script>
+</body>
+</html>
